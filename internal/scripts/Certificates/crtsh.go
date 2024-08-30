@@ -3,10 +3,10 @@ package main
 import (
 	"fmt"
 	"io"
+	"errors"
 	"encoding/json"
 	"Gomain/internal/utils/MakeRequests"
 	"Gomain/internal/utils/HandleFunc"
-
 )
 
 // 定义用于解析 JSON 的结构体
@@ -32,24 +32,27 @@ func query(domain string)([]string, error){
 	// 设置请求配置
 	request, err := MakeRequests.MakeReq(url)
 	if err != nil{
-		panic(err)
+		// panic 用于处理程序中的严重错误或不可恢复的异常
+		// panic(err)
+		return []string{}, errors.New("Create Requests Error") 
 	}
 
 	// 发送 HTTP 请求
 	resp, err := client.Do(request)
 	if err != nil{
-		panic(err)
+		return []string{}, errors.New("Send Requests Error")  
 	}
 	defer resp.Body.Close()
 
+	fmt.Println(resp.StatusCode)
 	if(resp.StatusCode != 200){
-		return []string{}, nil
+		return []string{}, errors.New("Response not 200 Error")  
 	}
 
 	// 处理响应内容，提取域名目标
 	subdomains, err := resolve_resp(resp.Body)
 	if err != nil{
-		panic(err)
+		return []string{}, errors.New("Extract domains Error") 
 	}
 	result := HandleFunc.RemoveDuplicates(subdomains)
 	return result, err
@@ -60,7 +63,7 @@ func resolve_resp(html io.Reader)(result []string, err error){
 	// 读取响应体 响应内容为json字符串
 	content, err := io.ReadAll(html)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read response body: %w", err)
+		return []string{}, errors.New("failed to read response body")
 	}
 
 	var certificates []Certificate
@@ -68,7 +71,7 @@ func resolve_resp(html io.Reader)(result []string, err error){
 	err = json.Unmarshal([]byte(content), &certificates)
 
 	if err != nil {
-		return nil, fmt.Errorf("failed to unmarshal JSON: %w", err)
+		return []string{}, errors.New("failed to unmarshal JSON")
 	}
 
 	for _, cert := range certificates {
@@ -81,10 +84,12 @@ func resolve_resp(html io.Reader)(result []string, err error){
 
 func main(){
 	// domain := "bilibili.com"
-	domain := "gxust.edu.cn"
+	// domain := "gxust.edu.cn"
+	domain := "gxu.edu.cn"
 	subdomains, err := query(domain)
 	if err != nil{
-		panic(err)
+		fmt.Println(1)
+		fmt.Println(err)
 	}
 	fmt.Println(subdomains)
 }

@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"strings"
+	"errors"
 
 	"github.com/PuerkitoBio/goquery"
 	"Gomain/internal/utils/MakeRequests"
@@ -21,27 +22,28 @@ func query(domain string)([]string, error){
 	// 设置请求配置
 	request, err := MakeRequests.MakeReq(url)
 	if err != nil{
-		panic(err)
+		return []string{}, errors.New("Fail to Create Requests")
 	}
 
 	// 发送 HTTP 请求
 	resp, err := client.Do(request)
 	if err != nil{
-		panic(err)
+		return []string{}, errors.New("Fail to send Requests")
 	}
 	defer resp.Body.Close()
-
-	// 处理响应内容，提取域名目标
-	if(resp.StatusCode == 200){
-		subdomains, err := resolve_html(resp.Body)
-		if err != nil{
-			panic(err)
-		}
-		result := HandleFunc.RemoveDuplicates(subdomains)
-		return result, nil
+	
+	if(resp.StatusCode != 200){
+		return []string{}, errors.New("Response Error: not 200")
 	}
 
-	return nil, err
+	// 处理响应内容，提取域名目标
+	subdomains, err := resolve_html(resp.Body)
+	if err != nil{
+		return []string{}, errors.New("Fail to extract subdomains")
+	}
+	result := HandleFunc.RemoveDuplicates(subdomains)
+	return result, nil
+	
 }
 
 
@@ -51,7 +53,7 @@ func resolve_html(html io.Reader)([]string, error){
 	domains_slice := make([]string, 0)
 	doc, err := goquery.NewDocumentFromReader(html)
 	if err != nil{
-		panic(err)
+		return []string{}, errors.New("Fail to read HTML")
 	}
 	// 查找所有的表格
 	doc.Find("table").Each(func(i int, table *goquery.Selection) {
@@ -73,7 +75,7 @@ func main(){
 	domain := "bilibili.com"
 	subdomains, err := query(domain)
 	if err != nil{
-		panic(err)
+		fmt.Println(err)
 	}
 	fmt.Println(subdomains)
 }
