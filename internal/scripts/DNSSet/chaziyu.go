@@ -11,8 +11,12 @@ import (
 	"Gomain/internal/utils/HandleFunc"
 )
 
-// 整合处理 请求 解析 返回
-func query(domain string)([]string, error){
+// 定义模块结构体
+type MODULE_CHAZIYU struct {
+	ModeleName string
+}
+
+func (m_chaziyu MODULE_CHAZIYU) GetDomainNames(domain string)([]string, error){
 	// 目标url
 	url := "https://chaziyu.com/" + domain
 
@@ -43,9 +47,7 @@ func query(domain string)([]string, error){
 	}
 	result := HandleFunc.RemoveDuplicates(subdomains)
 	return result, nil
-	
 }
-
 
 // 解析响应html页面
 func resolve_html(html io.Reader)([]string, error){
@@ -73,7 +75,8 @@ func resolve_html(html io.Reader)([]string, error){
 // 主函数测试调用
 func main(){
 	domain := "bilibili.com"
-	subdomains, err := query(domain)
+	chaziyu := MODULE_CHAZIYU{ModeleName: "crtsh"}
+	subdomains, err := chaziyu.GetDomainNames(domain)
 	if err != nil{
 		fmt.Println(err)
 	}

@@ -9,6 +9,11 @@ import (
 	"Gomain/internal/utils/HandleFunc"
 )
 
+// 定义模块结构体
+type MODULE_CRTSH struct {
+	ModeleName string
+}
+
 // 定义用于解析 JSON 的结构体
 type Certificate struct {
 	IssuerCAID     int    `json:"issuer_ca_id"`
@@ -23,7 +28,7 @@ type Certificate struct {
 	ResultCount    int    `json:"result_count"`
 }
 
-func query(domain string)([]string, error){
+func (m_crtsh MODULE_CRTSH) GetDomainNames(domain string)([]string, error){
 	url := "https://crt.sh/?q=" + domain
 	
 	// 创建请求客户端
@@ -86,7 +91,8 @@ func main(){
 	// domain := "bilibili.com"
 	// domain := "gxust.edu.cn"
 	domain := "gxu.edu.cn"
-	subdomains, err := query(domain)
+	crtsh := MODULE_CRTSH{ModeleName: "crtsh"}
+	subdomains, err := crtsh.GetDomainNames(domain)
 	if err != nil{
 		fmt.Println(1)
 		fmt.Println(err)

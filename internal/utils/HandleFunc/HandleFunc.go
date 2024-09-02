@@ -32,7 +32,7 @@ func FilterWildcardSign(domain string)(domain_extracted string){
 	return domain
 }
 
-// func main(){
-// 	res := FilterWildcardSign("baidu.com")
-// 	fmt.Println(res)
-// }
+func main(){
+	res := FilterWildcardSign("baidu.com")
+	fmt.Println(res)
+}
