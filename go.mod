@@ -1,6 +1,6 @@
-module Gomain
+module github.com/JYThomas/Gomain
 
-go 1.22.3
+go 1.23.0
 
 require github.com/PuerkitoBio/goquery v1.9.2
 

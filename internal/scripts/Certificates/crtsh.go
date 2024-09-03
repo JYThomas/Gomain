@@ -5,8 +5,8 @@ import (
 	"io"
 	"errors"
 	"encoding/json"
-	"Gomain/internal/utils/MakeRequests"
-	"Gomain/internal/utils/HandleFunc"
+	"github.com/JYThomas/Gomain/internal/utils/MakeRequests"
+	"github.com/JYThomas/Gomain/internal/utils/HandleFunc"
 )
 
 // 定义模块结构体

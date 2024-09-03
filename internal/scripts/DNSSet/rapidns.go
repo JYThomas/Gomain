@@ -8,7 +8,7 @@ import (
 	"strconv"
 
 	"github.com/PuerkitoBio/goquery"
-	"Gomain/internal/utils/MakeRequests"
+	"github.com/JYThomas/Gomain/internal/utils/MakeRequests"
 	// "Gomain/internal/utils/HandleFunc"
 )
 
