@@ -68,14 +68,3 @@ func resolve_html(html io.Reader) ([]string, error) {
 	})
 	return domains_slice, nil
 }
-
-// 主函数测试调用
-// func main() {
-// 	domain := "bilibili.com"
-// 	chaziyu := MODULE_CHAZIYU{ModeleName: "crtsh"}
-// 	subdomains, err := chaziyu.GetDomainNames(domain)
-// 	if err != nil {
-// 		fmt.Println(err)
-// 	}
-// 	fmt.Println(subdomains)
-// }
