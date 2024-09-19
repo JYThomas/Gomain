@@ -4,53 +4,24 @@ import (
 	"errors"
 	"io"
 	"io/ioutil"
-	"log"
-	"path/filepath"
 	"strconv"
 	"strings"
 
 	"github.com/JYThomas/Gomain/internal/pkg"
 	"github.com/PuerkitoBio/goquery"
-	"gopkg.in/ini.v1"
 )
 
 type MODULE_RAPIDDNS struct {
 	ModuleName string
 }
 
-// 声明一个包级变量来存储配置
-var Config *ini.File
-
-// init 函数会在 main 函数之前自动执行
-func init() {
-	var err error
-	Config, err = LoadConfig()
-	if err != nil {
-		log.Fatalf("Failed to load configuration: %v", err)
-	}
-}
-
-// 加载配置文件
-func LoadConfig() (*ini.File, error) {
-	// 获取当前文件夹所在路径
-	basePath, err := filepath.Abs(filepath.Dir("."))
-	if err != nil {
-		return nil, errors.New("Failed to determine current directory")
-	}
-
-	// 拼接配置文件路径
-	configPath := filepath.Join(basePath, "../../../Config.ini")
-
-	// 加载配置文件
-	cfg, err := ini.Load(configPath)
-	if err != nil {
-		return nil, errors.New("Module RAPIDDNS: Config Load Error")
-	}
-	return cfg, err
-}
-
 // 获取域名数据
 func (m_rapiddns MODULE_RAPIDDNS) GetDomainNames(domain string, retrycounts int) (DomainNames []string, err error) {
+	// 加载配置文件数据源url
+	Config, err := pkg.LoadConfig()
+	if err != nil {
+		return []string{}, errors.New("Module RAPIDDNS: Fail to load config file")
+	}
 	// 获取数据源爬虫目标链接
 	BASICURL := Config.Section("PassiveDomain").Key("URL_RAPIDDNS").String()
 
@@ -61,7 +32,7 @@ func (m_rapiddns MODULE_RAPIDDNS) GetDomainNames(domain string, retrycounts int)
 		TargetURL := BASICURL + domain + "?page=" + strconv.Itoa(i)
 
 		// 请求数据
-		html, err := GetResponse(TargetURL, 3)
+		html, err := GetResponse_RAPPIDNS(TargetURL, retrycounts)
 		if err != nil {
 			// 如果在三次请求都没获取到数据的情况下 要么网络问题 要么没有数据 直接丢弃
 			return []string{}, errors.New("Module RAPIDDNS: Fail to Get Response")
@@ -80,7 +51,7 @@ func (m_rapiddns MODULE_RAPIDDNS) GetDomainNames(domain string, retrycounts int)
 }
 
 // 发起目标请求 获取响应内容
-func GetResponse(TargetURL string, retrycounts int) (html io.Reader, err error) {
+func GetResponse_RAPPIDNS(TargetURL string, retrycounts int) (html io.Reader, err error) {
 	if retrycounts <= 0 {
 		return nil, errors.New("Module RAPIDDNS: Max retry attempts reached")
 	}
@@ -103,7 +74,7 @@ func GetResponse(TargetURL string, retrycounts int) (html io.Reader, err error) 
 
 	// 响应结果判断 重试三次
 	if resp.StatusCode != 200 {
-		return GetResponse(TargetURL, retrycounts-1)
+		return GetResponse_RAPPIDNS(TargetURL, retrycounts-1)
 	}
 
 	// 读取 HTML 内容到字符串
