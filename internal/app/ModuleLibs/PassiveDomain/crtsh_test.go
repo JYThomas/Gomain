@@ -4,16 +4,18 @@ import (
 	"testing"
 )
 
-func TestGetDomainNames_CHAZIYU(t *testing.T) {
+func TestGetDomainNames_CRTSH(t *testing.T) {
 	// 初始化测试模块
-	chaziyu := MODULE_CHAZIYU{ModuleName: "chaziyu"}
+	crtsh := MODULE_CRTSH{ModuleName: "crtsh"}
 
 	// 定义测试域名
 	domain := "bilibili.com"
+
+	// 重试次数
 	retrycounts := 3
 
 	// 调用要测试的函数
-	subdomains, err := chaziyu.GetDomainNames(domain, retrycounts)
+	subdomains, err := crtsh.GetDomainNames(domain, retrycounts)
 
 	// 断言: 检查错误是否为 nil
 	if err != nil {
@@ -25,6 +27,5 @@ func TestGetDomainNames_CHAZIYU(t *testing.T) {
 		t.Errorf("Expected subdomains, got empty result")
 	}
 
-	// 打印结果以供手动检查
 	t.Logf("Subdomains: %v", subdomains)
 }

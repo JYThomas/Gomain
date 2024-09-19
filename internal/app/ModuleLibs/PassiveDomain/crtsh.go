@@ -3,7 +3,6 @@ package PassiveDomain
 import (
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 
 	"github.com/JYThomas/Gomain/internal/pkg"
@@ -11,7 +10,7 @@ import (
 
 // 定义模块结构体
 type MODULE_CRTSH struct {
-	ModeleName string
+	ModuleName string
 }
 
 // 定义用于解析 JSON 的结构体
@@ -28,7 +27,12 @@ type Certificate struct {
 	ResultCount    int    `json:"result_count"`
 }
 
-func (m_crtsh MODULE_CRTSH) GetDomainNames(domain string) ([]string, error) {
+// 发起请求获取域名
+func (m_crtsh MODULE_CRTSH) GetDomainNames(domain string, retrycounts int) ([]string, error) {
+	if retrycounts <= 0 {
+		return []string{}, errors.New("Module CRTSH: Max retry attempts reached")
+	}
+
 	url := "https://crt.sh/?q=" + domain
 
 	// 创建请求客户端
@@ -39,36 +43,36 @@ func (m_crtsh MODULE_CRTSH) GetDomainNames(domain string) ([]string, error) {
 	if err != nil {
 		// panic 用于处理程序中的严重错误或不可恢复的异常
 		// panic(err)
-		return []string{}, errors.New("Create Requests Error")
+		return []string{}, errors.New("Module CRTSH: Make Requests Fail")
 	}
 
 	// 发送 HTTP 请求
 	resp, err := client.Do(request)
 	if err != nil {
-		return []string{}, errors.New("Send Requests Error")
+		return []string{}, errors.New("Module CRTSH: Send Requests Error")
 	}
 	defer resp.Body.Close()
 
-	fmt.Println(resp.StatusCode)
+	// 响应错误 重试
 	if resp.StatusCode != 200 {
-		return []string{}, errors.New("Response not 200 Error")
+		return m_crtsh.GetDomainNames(domain, retrycounts-1)
 	}
 
 	// 处理响应内容，提取域名目标
-	subdomains, err := resolve_resp(resp.Body)
+	subdomains, err := ResolveHTML_CRTSH(resp.Body)
 	if err != nil {
-		return []string{}, errors.New("Extract domains Error")
+		return []string{}, errors.New("Module CRTSH: Extract domains Error")
 	}
 	result := pkg.RemoveDuplicates(subdomains)
 	return result, err
 }
 
 // 解析响应的html页面
-func resolve_resp(html io.Reader) (result []string, err error) {
+func ResolveHTML_CRTSH(html io.Reader) (result []string, err error) {
 	// 读取响应体 响应内容为json字符串
 	content, err := io.ReadAll(html)
 	if err != nil {
-		return []string{}, errors.New("failed to read response body")
+		return []string{}, errors.New("Module CRTSH: failed to read response body")
 	}
 
 	var certificates []Certificate
@@ -76,7 +80,7 @@ func resolve_resp(html io.Reader) (result []string, err error) {
 	err = json.Unmarshal([]byte(content), &certificates)
 
 	if err != nil {
-		return []string{}, errors.New("failed to unmarshal JSON")
+		return []string{}, errors.New("Module CRTSH: failed to unmarshal JSON")
 	}
 
 	for _, cert := range certificates {
@@ -85,16 +89,3 @@ func resolve_resp(html io.Reader) (result []string, err error) {
 
 	return result, nil
 }
-
-// func main() {
-// 	// domain := "bilibili.com"
-// 	// domain := "gxust.edu.cn"
-// 	domain := "gxu.edu.cn"
-// 	crtsh := MODULE_CRTSH{ModeleName: "crtsh"}
-// 	subdomains, err := crtsh.GetDomainNames(domain)
-// 	if err != nil {
-// 		fmt.Println(1)
-// 		fmt.Println(err)
-// 	}
-// 	fmt.Println(subdomains)
-// }

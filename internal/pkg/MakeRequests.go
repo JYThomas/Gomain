@@ -9,7 +9,7 @@ import (
 func MakeHttpClient() *http.Client {
 	// 创建一个自定义的 HTTP 客户端，设置超时时间
 	client := &http.Client{
-		Timeout: 10 * time.Second, // 设置超时时间为 10 秒
+		Timeout: 20 * time.Second, // 设置超时时间为 10 秒
 	}
 	return client
 }

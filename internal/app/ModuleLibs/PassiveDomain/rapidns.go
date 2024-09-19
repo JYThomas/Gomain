@@ -1,94 +1,132 @@
 package PassiveDomain
 
-// import (
-// 	"errors"
-// 	"fmt"
-// 	"io"
-// 	"math"
-// 	"strconv"
+import (
+	"errors"
+	"io"
+	"io/ioutil"
+	"log"
+	"path/filepath"
+	"strconv"
+	"strings"
 
-// 	"github.com/JYThomas/Gomain/internal/pkg"
-// 	"github.com/PuerkitoBio/goquery"
-// )
+	"github.com/JYThomas/Gomain/internal/pkg"
+	"github.com/PuerkitoBio/goquery"
+	"gopkg.in/ini.v1"
+)
 
-// // 爬虫请求函数
-// func query(domain string) (io.Reader, error) {
-// 	// 目标url
-// 	url := "https://www.rapiddns.io/s/" + domain
+type MODULE_RAPIDDNS struct {
+	ModuleName string
+}
 
-// 	// 创建请求客户端
-// 	client := pkg.MakeHttpClient()
+// 声明一个包级变量来存储配置
+var Config *ini.File
 
-// 	// 设置请求配置
-// 	request, err := pkg.MakeReq(url)
-// 	if err != nil {
-// 		return []string{}, errors.New("Fail to create requests")
-// 	}
+// init 函数会在 main 函数之前自动执行
+func init() {
+	var err error
+	Config, err = LoadConfig()
+	if err != nil {
+		log.Fatalf("Failed to load configuration: %v", err)
+	}
+}
 
-// 	// 发送 HTTP 请求
-// 	resp, err := client.Do(request)
-// 	if err != nil {
-// 		return []string{}, errors.New("Fail to send requests")
-// 	}
-// 	defer resp.Body.Close()
+// 加载配置文件
+func LoadConfig() (*ini.File, error) {
+	// 获取当前文件夹所在路径
+	basePath, err := filepath.Abs(filepath.Dir("."))
+	if err != nil {
+		return nil, errors.New("Failed to determine current directory")
+	}
 
-// 	// 处理响应内容，提取域名目标
-// 	if resp.StatusCode != 200 {
-// 		return []string{}, errors.New("Response Error: not 200")
-// 	}
+	// 拼接配置文件路径
+	configPath := filepath.Join(basePath, "../../../Config.ini")
 
-// 	return resp.Body, nil
-// }
+	// 加载配置文件
+	cfg, err := ini.Load(configPath)
+	if err != nil {
+		return nil, errors.New("Module RAPIDDNS: Config Load Error")
+	}
+	return cfg, err
+}
 
-// // 获取查询结果分页信息
-// func GetRecordNumber(html io.Reader) (int, int, error) {
-// 	doc, err := goquery.NewDocumentFromReader(html)
-// 	if err != nil {
-// 		return []string{}, errors.New("Fail to read HTML")
-// 	}
-// 	// 获取总记录数(total标签)
-// 	RecordNumber := 0
-// 	fmt.Println(doc)
-// 	doc.Find("div.d-flex").Each(func(i int, s *goquery.Selection) {
-// 		// 获取span元素中的文本、
-// 		spanText := s.Find("span").Text()
-// 		fmt.Println(spanText)
-// 		RecordNumber, err = strconv.Atoi(spanText)
-// 		if err != nil {
-// 			return []string{}, errors.New("Fail to extract subdomains")
-// 		}
-// 	})
-// 	PageNumber := int(math.Ceil(float64(RecordNumber) / 100.0))
+// 获取域名数据
+func (m_rapiddns MODULE_RAPIDDNS) GetDomainNames(domain string, retrycounts int) (DomainNames []string, err error) {
+	// 获取数据源爬虫目标链接
+	BASICURL := Config.Section("PassiveDomain").Key("URL_RAPIDDNS").String()
 
-// 	return RecordNumber, PageNumber, nil
+	// 设置循环分页获取数据源数据
+	for i := 1; i <= 10; i++ {
+		// 构造请求链接
+		// https://www.rapiddns.io/s/bilibili.com?page=1
+		TargetURL := BASICURL + domain + "?page=" + strconv.Itoa(i)
 
-// }
+		// 请求数据
+		html, err := GetResponse(TargetURL, 3)
+		if err != nil {
+			// 如果在三次请求都没获取到数据的情况下 要么网络问题 要么没有数据 直接丢弃
+			return []string{}, errors.New("Module RAPIDDNS: Fail to Get Response")
+		}
 
-// // 页面数据解析函数
-// // func resolve_html(html io.Reader)([]string, error){
-// // 	// 定义结果存储切片
-// // 	// domain_slice := make([]string, 0)
-// // 	doc, err := goquery.NewDocumentFromReader(html)
-// // 	if err != nil {
-// // 		panic(err)
-// // 	}
-// // 	// 解析HTML
+		// 解析响应 提取域名资产
+		subdomains, err := ResolveHTML_RAPIDDNS(html)
+		if err != nil {
+			return []string{}, errors.New("Module RAPIDDNS: Fail to Extract subdomains")
+		}
+		// 数据合并 将切片元素追加到返回结果中
+		DomainNames = append(DomainNames, subdomains...)
+	}
 
-// // }
+	return DomainNames, nil
+}
 
-// // 主函数调用测试
-// func main() {
-// 	domain := "bilibili.com"
-// 	// 首先获取响应内容第一页。获取总记录数
-// 	FirstPageDoc, err := query(domain)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	// 提取记录数
-// 	RecordNumber, PageNumber, err := GetRecordNumber(FirstPageDoc)
-// 	if err != nil {
-// 		panic(err)
-// 	}
-// 	fmt.Println(RecordNumber, PageNumber)
-// 	//
-// }
+// 发起目标请求 获取响应内容
+func GetResponse(TargetURL string, retrycounts int) (html io.Reader, err error) {
+	if retrycounts <= 0 {
+		return nil, errors.New("Module RAPIDDNS: Max retry attempts reached")
+	}
+
+	// 创建请求客户端
+	client := pkg.MakeHttpClient()
+
+	// 设置请求配置
+	request, err := pkg.MakeReq(TargetURL)
+	if err != nil {
+		return nil, errors.New("Module RAPIDDNS: Make Requests Fail")
+	}
+
+	// 发送 HTTP 请求
+	resp, err := client.Do(request)
+	if err != nil {
+		return nil, errors.New("Module RAPIDDNS: Send Requests Error")
+	}
+	defer resp.Body.Close()
+
+	// 响应结果判断 重试三次
+	if resp.StatusCode != 200 {
+		return GetResponse(TargetURL, retrycounts-1)
+	}
+
+	// 读取 HTML 内容到字符串
+	htmlContent, err := ioutil.ReadAll(resp.Body)
+	// 返回一个新的 io.Reader
+	return strings.NewReader(string(htmlContent)), nil
+}
+
+// 响应结果解析
+func ResolveHTML_RAPIDDNS(html io.Reader) (DomainNames []string, err error) {
+	// 定义结果存储切片
+	domains_slice := make([]string, 0)
+	doc, err := goquery.NewDocumentFromReader(html)
+	if err != nil {
+		return []string{}, errors.New("Module RAPIDDNS: Fail to read HTML")
+	}
+
+	// 查找html中的域名
+	doc.Find("Table tbody tr").Each(func(i int, row *goquery.Selection) {
+		// 查找每行中的第二个 <td>，即域名部分
+		subdomain := row.Find("td").Eq(0).Text()
+		domains_slice = append(domains_slice, strings.TrimSpace(subdomain))
+	})
+
+	return domains_slice, nil
+}

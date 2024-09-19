@@ -4,16 +4,16 @@ import (
 	"testing"
 )
 
-func TestGetDomainNames_CHAZIYU(t *testing.T) {
+func TestGetDomainNames_RAPIDDNS(t *testing.T) {
 	// 初始化测试模块
-	chaziyu := MODULE_CHAZIYU{ModuleName: "chaziyu"}
+	rapiddns := MODULE_RAPIDDNS{ModuleName: "rapiddns"}
 
 	// 定义测试域名
 	domain := "bilibili.com"
-	retrycounts := 3
+	retrycounts := 2
 
 	// 调用要测试的函数
-	subdomains, err := chaziyu.GetDomainNames(domain, retrycounts)
+	subdomains, err := rapiddns.GetDomainNames(domain, retrycounts)
 
 	// 断言: 检查错误是否为 nil
 	if err != nil {
