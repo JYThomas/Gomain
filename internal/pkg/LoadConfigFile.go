@@ -46,8 +46,6 @@ func LoadConfig() (*ini.File, error) {
 	configRelPath := "internal/Config.ini"
 	configPath := filepath.Join(gomainDir, configRelPath)
 
-	fmt.Println(configPath)
-
 	// 检查配置文件是否存在
 	if _, err := os.Stat(configPath); os.IsNotExist(err) {
 		return nil, fmt.Errorf("Load Config File Error: Config File Not Exist: %s", configPath)

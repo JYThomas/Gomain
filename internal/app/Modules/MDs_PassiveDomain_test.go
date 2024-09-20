@@ -7,7 +7,7 @@ import (
 
 func TestMDs_PassiveDomain(t *testing.T) {
 	// 定义测试域名
-	domain := "bilibili.com"
+	domain := "iqiyi.com"
 
 	// 重试次数
 	// retrycounts := 3
