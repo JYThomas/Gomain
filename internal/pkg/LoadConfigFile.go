@@ -10,7 +10,7 @@ import (
 )
 
 // 从当前工作目录向上查找直到找到Gomain目录
-func findGomainDir(startPath string) (string, error) {
+func FindGomainDir(startPath string) (string, error) {
 	for {
 		gomainDir := filepath.Join(startPath, "Gomain")
 
@@ -37,7 +37,7 @@ func LoadConfig() (*ini.File, error) {
 	}
 
 	// 查找Gomain目录
-	gomainDir, err := findGomainDir(startPath)
+	gomainDir, err := FindGomainDir(startPath)
 	if err != nil {
 		return nil, fmt.Errorf("Load Config File Error: Fail to find Gomain dir: %v", err)
 	}
