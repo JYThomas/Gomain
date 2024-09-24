@@ -5,7 +5,7 @@ import (
 )
 
 func TestDNSResolution(t *testing.T) {
-	domain := "www.bilibili.com"
+	domain := "www.gxust.edu.cn"
 
 	// 调用要测试的函数
 	records := DomainResolution(domain)

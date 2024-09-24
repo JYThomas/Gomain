@@ -1,11 +1,13 @@
 package ProactiveDomain
 
 import (
-	"context"
 	"errors"
-	"net"
+	"fmt"
 	"sync"
 	"time"
+
+	"github.com/JYThomas/Gomain/internal/pkg"
+	"github.com/miekg/dns"
 )
 
 type ResolutionResults struct {
@@ -19,38 +21,96 @@ type DNSRecord struct {
 	Host        string
 }
 
+// DNSResolver 结构体用于 DNS 解析
+type DNSResolver struct {
+	Resolver *dns.Client
+}
+
+// NewDNSResolver 创建一个新的 DNSResolver
+func NewDNSResolver() *DNSResolver {
+	return &DNSResolver{
+		Resolver: &dns.Client{
+			Timeout: 5 * time.Second,
+		},
+	}
+}
+
+// QueryDNS 执行 DNS 查询
+func (dr *DNSResolver) QueryDNS(domain string, recordType uint16) ([]dns.RR, error) {
+	m := dns.Msg{}
+	m.SetQuestion(dns.Fqdn(domain), recordType)
+	m.RecursionDesired = true
+
+	// 加载DNS服务器配置
+	// 加载配置文件数据源url
+	Config, err := pkg.LoadConfig()
+	if err != nil {
+		return nil, err
+	}
+	// 获取数据源爬虫目标链接
+	DNSRESOLVER := Config.Section("ProactiveDomain").Key("DNSRESOLVER").String()
+
+	response, _, err := dr.Resolver.Exchange(&m, DNSRESOLVER) // 使用 Google DNS 服务器
+	if err != nil {
+		return nil, err
+	}
+	if response.Rcode != dns.RcodeSuccess {
+		return nil, fmt.Errorf("failed to get DNS records: %s", dns.RcodeToString[response.Rcode])
+	}
+	return response.Answer, nil
+}
+
 // 域名解析函数
 func DomainResolution(domain string) (Records ResolutionResults) {
+
 	var wg sync.WaitGroup
-	ResultChan := make(chan []DNSRecord, 3)
+	ResultChan := make(chan []DNSRecord, 5)
 
 	// 启动并发任务
-	wg.Add(3)
+	wg.Add(5)
 
-	// IPv4、IPv6
 	go func() {
 		defer wg.Done()
-		IPv46Record, err := ResolutionIPv46(domain)
-		if err == nil {
+		if IPv46Record, err := ResolutionIPv4(domain); err == nil {
 			ResultChan <- IPv46Record
+		} else {
+			ResultChan <- nil
 		}
 	}()
 
-	// MX
 	go func() {
 		defer wg.Done()
-		MXRecord, err := ResolutionMX(domain)
-		if err == nil {
+		if IPv46Record, err := ResolutionIPv6(domain); err == nil {
+			ResultChan <- IPv46Record
+		} else {
+			ResultChan <- nil
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		if IPv46Record, err := ResolutionCNAME(domain); err == nil {
+			ResultChan <- IPv46Record
+		} else {
+			ResultChan <- nil
+		}
+	}()
+
+	go func() {
+		defer wg.Done()
+		if MXRecord, err := ResolutionMX(domain); err == nil {
 			ResultChan <- MXRecord
+		} else {
+			ResultChan <- nil
 		}
 	}()
 
-	// NS
 	go func() {
 		defer wg.Done()
-		NSRecord, err := ResolutionNS(domain)
-		if err == nil {
+		if NSRecord, err := ResolutionNS(domain); err == nil {
 			ResultChan <- NSRecord
+		} else {
+			ResultChan <- nil
 		}
 	}()
 
@@ -74,52 +134,104 @@ func DomainResolution(domain string) (Records ResolutionResults) {
 }
 
 // IPv4、IPv6
-func ResolutionIPv46(domain string) (IPv46Record []DNSRecord, err error) {
-	// 使用 context 设置超时时间，例如5秒
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+func ResolutionIPv4(domain string) (IPv4Record []DNSRecord, err error) {
+	resolver := NewDNSResolver()
 
 	// 使用 LookupIPContext 执行解析
-	ips, err := net.DefaultResolver.LookupIP(ctx, "ip", domain)
+	records, err := resolver.QueryDNS(domain, dns.TypeA)
+
+	fmt.Println(records)
+	fmt.Println(err)
 
 	if err != nil {
 		return nil, errors.New("Module ProactiveDomain: Fail to Resolve IPv4/IPv6")
 	}
-	for _, ip := range ips {
-		resolveType := "A"
-		if ip.To4() == nil {
-			resolveType = "AAAA" // 如果不是 IPv4，则为 IPv6
+	for _, record := range records {
+		if aRecord, ok := record.(*dns.A); ok {
+			record := DNSRecord{
+				DomainName:  domain,
+				ResolveType: "A",
+				Host:        aRecord.A.String(),
+			}
+			IPv4Record = append(IPv4Record, record)
 		}
-		record := DNSRecord{
-			DomainName:  domain,
-			ResolveType: resolveType,
-			Host:        ip.String(),
-		}
-		IPv46Record = append(IPv46Record, record)
 	}
 
-	return IPv46Record, nil
+	return IPv4Record, nil
+}
+
+// IPv6
+func ResolutionIPv6(domain string) (IPv6Record []DNSRecord, err error) {
+	resolver := NewDNSResolver()
+
+	// 使用 LookupIPContext 执行解析
+	records, err := resolver.QueryDNS(domain, dns.TypeAAAA)
+
+	fmt.Println(records)
+	fmt.Println(err)
+
+	if err != nil {
+		return nil, errors.New("Module ProactiveDomain: Fail to Resolve IPv4/IPv6")
+	}
+	for _, record := range records {
+		if aaaaRecord, ok := record.(*dns.AAAA); ok {
+			record := DNSRecord{
+				DomainName:  domain,
+				ResolveType: "AAAA",
+				Host:        aaaaRecord.AAAA.String(),
+			}
+			IPv6Record = append(IPv6Record, record)
+		}
+	}
+
+	return IPv6Record, nil
+}
+
+// CNAME
+func ResolutionCNAME(domain string) (CNAMERecord []DNSRecord, err error) {
+	resolver := NewDNSResolver()
+	records, err := resolver.QueryDNS(domain, dns.TypeCNAME)
+
+	fmt.Println(records)
+	fmt.Println(err)
+
+	if err != nil {
+		return nil, errors.New("Module ProactiveDomain: Fail to Resolve IPv4/IPv6")
+	}
+	for _, record := range records {
+		if cnameRecord, ok := record.(*dns.CNAME); ok {
+			record := DNSRecord{
+				DomainName:  domain,
+				ResolveType: "CNAME",
+				Host:        cnameRecord.Target,
+			}
+			CNAMERecord = append(CNAMERecord, record)
+		}
+	}
+
+	return CNAMERecord, nil
 }
 
 // MX
 func ResolutionMX(domain string) (MXRecord []DNSRecord, err error) {
-	// 使用 context 设置超时时间，例如5秒
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	resolver := NewDNSResolver()
+	records, err := resolver.QueryDNS(domain, dns.TypeMX)
 
-	// 使用 LookupIPContext 执行解析
-	mxs, err := net.DefaultResolver.LookupMX(ctx, domain)
+	fmt.Println(records)
+	fmt.Println(err)
 
 	if err != nil {
 		return nil, errors.New("Module ProactiveDomain: Fail to Resolve MX")
 	}
-	for _, mx := range mxs {
-		record := DNSRecord{
-			DomainName:  domain,
-			ResolveType: "MX",
-			Host:        mx.Host,
+	for _, record := range records {
+		if mxRecord, ok := record.(*dns.MX); ok {
+			record := DNSRecord{
+				DomainName:  domain,
+				ResolveType: "MX",
+				Host:        mxRecord.Mx,
+			}
+			MXRecord = append(MXRecord, record)
 		}
-		MXRecord = append(MXRecord, record)
 	}
 
 	return MXRecord, nil
@@ -127,23 +239,24 @@ func ResolutionMX(domain string) (MXRecord []DNSRecord, err error) {
 
 // NS
 func ResolutionNS(domain string) (NSRecord []DNSRecord, err error) {
-	// 使用 context 设置超时时间，例如5秒
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
+	resolver := NewDNSResolver()
+	records, err := resolver.QueryDNS(domain, dns.TypeNS)
 
-	// 使用 LookupIPContext 执行解析
-	nss, err := net.DefaultResolver.LookupNS(ctx, domain)
+	fmt.Println(records)
+	fmt.Println(err)
 
 	if err != nil {
 		return nil, errors.New("Module ProactiveDomain: Fail to Resolve NS")
 	}
-	for _, ns := range nss {
-		record := DNSRecord{
-			DomainName:  domain,
-			ResolveType: "NS",
-			Host:        ns.Host,
+	for _, record := range records {
+		if nsRecord, ok := record.(*dns.NS); ok {
+			record := DNSRecord{
+				DomainName:  domain,
+				ResolveType: "NS",
+				Host:        nsRecord.Ns,
+			}
+			NSRecord = append(NSRecord, record)
 		}
-		NSRecord = append(NSRecord, record)
 	}
 
 	return NSRecord, nil
