@@ -71,38 +71,43 @@ func (bf MODULE_BRUTEFORCE) GetDomainNames(domain string, dict_name string) (Dom
 		return []string{}, errors.New("ProactiveDomain Module: Load Suspect Domain Names Fail")
 	}
 
-	// 创建一个用于存储解析结果的通道
-	resultChan := make(chan string, len(SubdomainNames))
+	// 存放DNS解析结果
+	resultChan := make(chan ResolutionResults, 10)
 
-	// 并发解析潜在域名
 	var wg sync.WaitGroup
 
 	// 并发解析潜在域名
-	for _, subdomain := range SubdomainNames {
+	const maxGoroutines = 10 // 根据情况调整
+	sem := make(chan struct{}, maxGoroutines)
+
+	// 启动一个消费者协程，从 resultChan 中读取解析结果
+	go func() {
+		for resolved := range resultChan {
+			if len(resolved.DNSRecord) != 0 {
+				DomainNames = append(DomainNames, resolved.DomainName)
+			}
+		}
+	}()
+
+	// 并发解析域名
+	for _, subdomain := range SubdomainNames[:200] {
 		wg.Add(1)
+
 		go func(sub string) {
 			defer wg.Done()
-			// 执行域名解析
-			results := DomainResolution(subdomain)
+			sem <- struct{}{} // 请求一个信号量
 
-			if results.DNSRecord != nil {
-				// 发送解析结果到通道
-				resultChan <- subdomain
-			}
+			defer func() { <-sem }() // 释放信号量
+
+			results := DomainResolution(sub)
+
+			resultChan <- results
 
 		}(subdomain)
 	}
 
-	// 等待所有 goroutines 完成
-	go func() {
-		wg.Wait()
-		close(resultChan)
-	}()
-
-	// 收集所有解析结果 DNS解析成功的域名
-	for resolved := range resultChan {
-		DomainNames = append(DomainNames, resolved)
-	}
+	wg.Wait()
+	close(resultChan) // 关闭通道，确保没有其他发送者
 
 	return DomainNames, nil
 }

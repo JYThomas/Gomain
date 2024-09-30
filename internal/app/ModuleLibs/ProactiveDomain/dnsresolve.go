@@ -2,62 +2,99 @@ package ProactiveDomain
 
 // import (
 // 	"fmt"
-// 	"log"
-// 	"time"
+// 	"sync"
 
 // 	"github.com/miekg/dns"
 // )
 
-// // DNSResolver 结构体用于 DNS 解析
-// type DNSResolver struct {
-// 	Resolver *dns.Client
+// type DNSRecord struct {
+// 	DomainName string
+// 	RecordType string
+// 	Records    []string
 // }
 
-// // NewDNSResolver 创建一个新的 DNSResolver
-// func NewDNSResolver() *DNSResolver {
-// 	return &DNSResolver{
-// 		Resolver: &dns.Client{
-// 			Timeout: 5 * time.Second,
-// 		},
-// 	}
-// }
+// func resolveDNS(domain string, recordType uint16, wg *sync.WaitGroup, results chan<- DNSRecord) {
+// 	defer wg.Done()
 
-// // QueryDNS 执行 DNS 查询
-// func (dr *DNSResolver) QueryDNS(domain string, recordType uint16) ([]dns.RR, error) {
-// 	m := dns.Msg{}
-// 	m.SetQuestion(dns.Fqdn(domain), recordType)
-// 	m.RecursionDesired = true
+// 	client := new(dns.Client)
+// 	msg := new(dns.Msg)
+// 	msg.SetQuestion(dns.Fqdn(domain), recordType)
+// 	msg.RecursionDesired = true
 
-// 	response, _, err := dr.Resolver.Exchange(&m, "8.8.8.8:53") // 使用 Google DNS 服务器
+// 	response, _, err := client.Exchange(msg, "8.8.8.8:53") // 使用 Google 的公共 DNS
 // 	if err != nil {
-// 		return nil, err
+// 		fmt.Printf("Failed to resolve %s: %v\n", domain, err)
+// 		return
 // 	}
-// 	if response.Rcode != dns.RcodeSuccess {
-// 		return nil, fmt.Errorf("failed to get DNS records: %s", dns.RcodeToString[response.Rcode])
+
+// 	var records []string
+// 	switch recordType {
+// 	case dns.TypeA:
+// 		for _, ans := range response.Answer {
+// 			if aRecord, ok := ans.(*dns.A); ok {
+// 				records = append(records, aRecord.A.String())
+// 			}
+// 		}
+// 	case dns.TypeAAAA:
+// 		for _, ans := range response.Answer {
+// 			if aaaaRecord, ok := ans.(*dns.AAAA); ok {
+// 				records = append(records, aaaaRecord.AAAA.String())
+// 			}
+// 		}
+// 	case dns.TypeCNAME:
+// 		for _, ans := range response.Answer {
+// 			if cnameRecord, ok := ans.(*dns.CNAME); ok {
+// 				records = append(records, cnameRecord.Target)
+// 			}
+// 		}
+// 	case dns.TypeMX:
+// 		for _, ans := range response.Answer {
+// 			if mxRecord, ok := ans.(*dns.MX); ok {
+// 				records = append(records, mxRecord.Mx)
+// 			}
+// 		}
+// 	case dns.TypeNS:
+// 		for _, ans := range response.Answer {
+// 			if nsRecord, ok := ans.(*dns.NS); ok {
+// 				records = append(records, nsRecord.Ns)
+// 			}
+// 		}
+// 	default:
+// 		fmt.Printf("Unsupported record type: %d\n", recordType)
+// 		return
 // 	}
-// 	return response.Answer, nil
+
+// 	results <- DNSRecord{DomainName: domain, RecordType: dns.TypeToString[recordType], Records: records}
 // }
 
-// func dnsres(domain string) {
-// 	resolver := NewDNSResolver()
+// func BatchResolveDNS(domains []string, recordTypes []uint16, concurrencyLimit int) map[string]map[string][]string {
+// 	var wg sync.WaitGroup
+// 	results := make(chan DNSRecord)
+// 	resultMap := make(map[string]map[string][]string)
+// 	sem := make(chan struct{}, concurrencyLimit) // 控制并发数
 
-// 	// 查询不同类型的 DNS 记录
-// 	recordTypes := map[string]uint16{
-// 		"A":     dns.TypeA,
-// 		"AAAA":  dns.TypeAAAA,
-// 		"CNAME": dns.TypeCNAME,
-// 		"MX":    dns.TypeMX,
-// 		"NS":    dns.TypeNS,
-// 	}
-
-// 	for name, recordType := range recordTypes {
-// 		records, err := resolver.QueryDNS(domain, recordType) // 替换为要查询的域名
-// 		if err != nil {
-// 			log.Fatalf("Error querying %s records for example.com: %v", name, err)
-// 		}
-// 		fmt.Printf("%s records for example.com:\n", name)
-// 		for _, record := range records {
-// 			fmt.Println(record)
+// 	for _, domain := range domains {
+// 		for _, recordType := range recordTypes {
+// 			wg.Add(1)
+// 			sem <- struct{}{} // 获取信号量
+// 			go func(domain string, recordType uint16) {
+// 				defer func() { <-sem }() // 释放信号量
+// 				resolveDNS(domain, recordType, &wg, results)
+// 			}(domain, recordType)
 // 		}
 // 	}
+
+// 	go func() {
+// 		wg.Wait()
+// 		close(results)
+// 	}()
+
+// 	for result := range results {
+// 		if resultMap[result.DomainName] == nil {
+// 			resultMap[result.DomainName] = make(map[string][]string)
+// 		}
+// 		resultMap[result.DomainName][result.RecordType] = result.Records
+// 	}
+
+// 	return resultMap
 // }

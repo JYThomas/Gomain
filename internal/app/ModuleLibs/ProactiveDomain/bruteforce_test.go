@@ -8,8 +8,8 @@ import (
 func TestProactiveDomain(t *testing.T) {
 	// 初始化测试模块
 	bf := MODULE_BRUTEFORCE{ModuleName: "bruteforce"}
-	domain := "gxust.edu.cn"
-	dict_name := "test.txt"
+	domain := "gxu.edu.cn"
+	dict_name := "subnames_ofa.txt"
 
 	// 调用要测试的函数
 	subdomains, err := bf.GetDomainNames(domain, dict_name)
@@ -23,4 +23,5 @@ func TestProactiveDomain(t *testing.T) {
 
 	t.Logf("\nrecords: %v", subdomains)
 	t.Logf("\nrecords: %v", len(subdomains))
+
 }

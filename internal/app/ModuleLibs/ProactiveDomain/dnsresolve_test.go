@@ -1,19 +1,26 @@
 package ProactiveDomain
 
 // import (
+// 	"fmt"
 // 	"testing"
+
+// 	"github.com/miekg/dns"
 // )
 
 // func TestDNSresolve(t *testing.T) {
-// 	domain := "www.gxust.edu.cn"
+// 	SubdomainNames, err := GetSuspectDomainNames("gxust.edu.cn", "subnames_ofa.txt")
+// 	if err != nil {
+// 		fmt.Println("ProactiveDomain Module: Load Suspect Domain Names Fail")
+// 	}
 
-// 	// 调用要测试的函数
-// 	dnsres(domain)
+// 	recordTypes := []uint16{dns.TypeA, dns.TypeAAAA, dns.TypeCNAME, dns.TypeMX, dns.TypeNS}
 
-// 	// 断言: 检查返回的子域名列表是否为空
-// 	// if len(records.DNSRecord) == 0 {
-// 	// 	t.Errorf("Expected subdomains, got empty result")
-// 	// }
+// 	results := BatchResolveDNS(SubdomainNames[:1000], recordTypes, 50)
 
-// 	// t.Logf("\nrecords: %v", records)
+// 	for domain, records := range results {
+// 		fmt.Printf("Domain: %s\n", domain)
+// 		for recordType, values := range records {
+// 			fmt.Printf("  %s: %v\n", recordType, values)
+// 		}
+// 	}
 // }
